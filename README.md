@@ -15,7 +15,21 @@ these two files as weather_data and weather_stations correspondingly which conta
 different stations and their locations (marked by longitude, latitude and elevation) from January 1 to December 31, 2015, 
 a period of 365 days.
 
-## Research objectives
+
+
+## Report/code folder
+ 
+- **spatial analysis.R** is used to spatial analysis
+- **choose_model.R** is used to choose a feasible spatial model for the temperature.
+- **Space-temporal.R** is used to construct spatial-temporal analysis
+- **plot_each_day.R** is used to generate the object in shiny
+
+## Reproducibility
+
+To save running time, we put the generated important results in the **to load** folder. If necessary, you can load these files 
+according to the steps in Spatial-temporal analysis of the temperature in US in 2015.Rmd (in the **Report** folder). 
+
+### Research objectives
 
 In geostatistics, we generally consider the temperature is normally distributed with mean and covariance structure being functions 
 of latitude, longitude and time. Furthermore, the mean function may be the linear combination or other nonlinear forms of 
@@ -26,15 +40,3 @@ Considering these cases, we will figure out the structure of the normal distribu
 - 2. Construct Spatial-Temporal analysis.
 - 3. Various forms of Kriging can be used to attempt to fill gaps so that we can obtain the complete temperature variation 
 diagram across the United States. 
-
-## Code folder
- 
-- **spatial analysis.R** is used to spatial analysis
-- **choose_model.R** is used to choose a feasible spatial model for the temperature.
-- **Space-temporal.R** is used to construct spatial-temporal analysis
-- **plot_each_day.R** is used to generate the object in shiny
-
-## Reproducibility
-
-To save running time, we put the generated important results in the **to load** folder. If necessary, you can load these files 
-according to the steps in Spatial-temporal analysis of the temperature in US in 2015.Rmd (in the **code** folder). 
