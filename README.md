@@ -27,6 +27,13 @@ Considering these cases, we will figure out the structure of the normal distribu
 - 3. Various forms of Kriging can be used to attempt to fill gaps so that we can obtain the complete temperature variation 
 diagram across the United States. 
 
+## Code folder
+ 
+- **spatial analysis.R** is used to spatial analysis
+- **choose_model.R** is used to choose a feasible spatial model for the temperature.
+- **Space-temporal.R** is used to construct spatial-temporal analysis
+- **plot_each_day.R** is used to generate the object in shiny
+
 ## Reproducibility
 
 To save running time, we put the generated important results in the **to load** folder. If necessary, you can load these files 
