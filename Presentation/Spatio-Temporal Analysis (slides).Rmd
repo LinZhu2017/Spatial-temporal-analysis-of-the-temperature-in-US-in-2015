@@ -1,0 +1,443 @@
+---
+title: "Spatio-Temporal Analysis of America temperature in 2015"
+author: "Zhu Lin"
+output:
+  slidy_presentation: default
+  ioslides_presentation:
+    transition: faster
+    widescreen: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width=8, fig.height=4, fig.align = "center", warning=FALSE, message=FALSE)
+```
+
+## Introduction
+Climate change and potential global warming have become the significant issue of the day, monitoring temperatures across the region, therefore, is becoming increasingly important in response to weather-related disasters.
+
+The data files US_weather_2015 and weather_stations correspondingly contain temperature of the United States at different stations and and their locations (marked by longitude, latitude and elevation) from January 1 to December 31, 2015, a period of 365 days. 
+
+## Data description
+The following packages are used in this project. 
+
+```{r eval=T, echo=T,warning=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(maps)
+library(mapdata) 
+library(maptools)
+library(graphics)
+library(gstat)
+library(sp)
+library(viridis)
+library(fields)
+library(gridExtra)
+library(xts) 
+library(spacetime) 
+```
+
+## Data description
+Read two data files US_weather_2015 and weather_stations
+
+```{r echo=TRUE}
+load("weather_data.RData")
+load("weather_stations.RData")
+```
+
+## Data description
+
+Dataframe weather has five variables: stn, year, month, day and temp.
+```{r echo=TRUE}
+head(weather_data)
+```
+
+## Data description
+
+Dataframe loc has seven variables: stn, name, country, state, lat, lon and elev.
+```{r echo=TRUE}
+head(weather_stations)
+```
+
+
+## Monthly data 
+We can get a rough idea of the monthly temperature in the United States from the histogram and boxplot.
+
+```{r, echo=F, eval=T}
+load("month_mean.RData")
+```
+
+```{r warning=F}
+## Histogram of Average monthly temperature 
+fit <- fitted(loess(month_mean$temp_month ~ month_mean$month))
+p_hist <- plot_ly(data = month_mean, x = ~month, y = ~temp_month, type = "bar", showlegend=FALSE,
+                  marker=list(color=~month, showscale=FALSE)) %>%
+  add_lines(y = fit, showlegend=FALSE, color = 'black') %>%
+  layout(title = 'Average monthly temperature in the US in 2015',
+         showlegend=FALSE, xaxis = list(side="right", showgrid=FALSE),
+         yaxis=list(title = "temp (Fahrenheit)",showgrid=FALSE))
+p_hist
+```
+
+
+## Monthly data 
+We can get a rough idea of the monthly temperature in the United States from the histogram and boxplot.
+```{r, echo=F, eval=T}
+load("weather_data2.RData")
+```
+
+```{r warning=F}
+## Boxplot of US monthly temperature
+p_box <- ggplot(weather_data2, aes(month, temp, group = month, color = month, fill = month)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  scale_fill_gradientn(colours = terrain.colors((12))) + 
+  theme(legend.position='none') +
+  ggtitle("Boxplot of US monthly temperature")
+
+p_box
+```
+
+
+## Data of Jan 1, 2015
+To familiarize ourselves with the geography of the dataset, we will initially ignore the temporal component of the dataset and examine the spatial distribution of temperatures on a single day. Take day 1 as an example, therefore, we extract data of January 1, 2015.
+
+```{r include=FALSE}
+load("day1.RData")
+```
+
+```{r echo=TRUE}
+## Extract day 1's data and sort it
+head(day1)
+```
+
+## Temperature distribution image of Jan 1, 2015
+Since the temperature points are discrete with respect to the whole space (in the longitude-latitude-axis matrix, only 0.02% of elements are not NA), it is not available to show the United States temperatures by using the image.plot command in the fields package. In this case, we introduce the following method to plot the discrete points' temperature distribution image.
+
+
+```{r echo=F, eval=T}
+load("day1.RData")
+```
+
+```{r}
+day1_= day1
+day1_$hover <- with(day1_, paste("<br>", "Lon:", lon,  
+                                 "<br>","Lat:", lat, 
+                                 "<br>","Elev:", elev,
+                                 "<br>", "Temp:", temp))
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('white'))
+
+p1 <- plot_geo(day1_, lat = ~lat, lon = ~lon) %>%
+  add_markers(
+    text = ~hover, showlegend=FALSE,
+    marker=list(color = ~temp, showscale=FALSE),
+    hoverinfo = "text") %>%
+  layout(title = 'US temp (Fahrenheit) on Jan 1st, 2015',
+         geo = g, showlegend=T)
+library(plotly)
+ggplotly(p1)
+```
+
+## Temperature distribution image of Jan 1, 2015
+
+A pronounced temperature gradient is visible from highs of over 85.6 Fahrenheit in the north of the study area which is near to the equator to a low of -14.7 Fahrenheit towards the southern boundary. This is not only indicative of spatial correlation in the dataset, but it also shows that the data are not stationary, as the mean temperature must vary strongly with latitude. 
+
+According to the temperature distribution image of January 1, 2015, we can find that on January 1 in 2015, the temperature in most parts of the United States was concentrated at 30 Fahrenheit and extreme temperatures only account for a small proportion.
+
+## Mean and variance of US temperature by latitude on Jan 1 in 2015
+```{r}
+library(graphics)
+## Mean vs. Latitude:
+lat_mean=day1 %>%
+  group_by(lat)%>%
+  summarise(temp_lat = mean(temp, na.rm=TRUE)) 
+
+f1 = ggplot(data = lat_mean) + 
+  geom_point(mapping = aes(x = lat, y = temp_lat))+
+  geom_smooth(mapping = aes(x = lat, y = temp_lat)) +
+  labs(x = "lat",y = "temp", title = 'Mean temp by Latitude')
+
+## Variance vs. Latitude:
+lat_var=day1 %>%
+  group_by(lat)%>%
+  summarise(temp_var_lat = var(temp, na.rm=TRUE))
+f2 = ggplot(data = lat_var) + 
+  geom_point(mapping = aes(x = lat, y = temp_var_lat))+
+  geom_smooth(mapping = aes(x = lat, y = temp_var_lat))+
+  labs(x = "lat",y = "variance of temp", title = 'Variance in temp by Latitude')
+```
+
+```{r}
+grid.arrange(f1, f2, ncol=2)
+```
+
+## Mean and variance of US temperature by longitude on Jan 1 in 2015
+
+```{r}
+## Mean vs. Longitude:
+lon_mean=day1 %>%
+  group_by(lon)%>%
+  summarise(temp_lon = mean(temp, na.rm=TRUE)) 
+f3 = ggplot(data = lon_mean) + 
+  geom_point(mapping = aes(x = lon, y = temp_lon))+
+  geom_smooth(mapping = aes(x = lon, y = temp_lon))+
+  labs(x = "lon",y = "temp", title = 'Mean temp by Longitude')
+
+## Variance vs. Longitude:
+lon_var=day1 %>%
+  group_by(lon)%>%
+  summarise(temp_var_lon = var(temp, na.rm=TRUE))
+f4 = ggplot(data = lon_var) + 
+  geom_point(mapping = aes(x = lon, y = temp_var_lon))+
+  geom_smooth(mapping = aes(x = lon, y = temp_var_lon))+
+  labs(x = "lon",y = "variance of temp", title = 'Variance in temp by Longitude')
+```
+
+```{r }
+grid.arrange(f3, f4, ncol=2)
+```
+
+
+## Mean and variance of US temperature by elevation on Jan 1 in 2015
+
+```{r}
+## Mean vs. Elevation:
+elev_mean=day1 %>%
+  group_by(elev)%>%
+  summarise(temp_elev = mean(temp, na.rm=TRUE)) 
+f5 = ggplot(data = elev_mean) + 
+  geom_point(mapping = aes(x = elev, y = temp_elev))+
+  geom_smooth(mapping = aes(x = elev, y = temp_elev))+
+  labs(x = "elev",y = "temp", title = 'Mean temp by Elevation')
+
+## Variance vs. Elevation:
+elev_var=day1 %>%
+  group_by(elev)%>%
+  summarise(temp_var_elev = var(temp, na.rm=TRUE))
+f6 = ggplot(data = elev_var) + 
+  geom_point(mapping = aes(x = elev, y = temp_var_elev))+
+  geom_smooth(mapping = aes(x = elev, y = temp_var_elev))+
+  labs(x = "elev",y = "variance of temp", title = 'Variance in temp by Elevation')
+```
+
+```{r}
+grid.arrange(f5, f6, ncol=2)
+```
+
+## Define train data and test data
+Longitude, latitude, altitude and corresponding temperature were extracted from the data "day1", 80% of which was training set and the rest was test set.
+
+```{r include=FALSE}
+load("X_new.RData")
+load("Y_new.RData")
+load("Z_new.RData")
+```
+
+```{r echo=TRUE}
+set.seed(123)
+index = sample(nrow(Y_new),nrow(Y_new)*0.8)
+train_X = X_new[index,]
+test_X = X_new[-index,]
+train_y = as.matrix(Y_new)[index]
+test_y = as.matrix(Y_new)[-index]
+train_Z = Z_new[index]
+test_Z = Z_new[-index]
+```
+
+## Model fitting 
+
+### Model 1: Assume quadratic polynomial trend in P
+```{r echo=T, eval=F}
+library(fields)
+par_est = spatialProcess(train_X,train_y,Z=train_Z,
+                         mKrig.args = list(m = 3),
+                         Distance = "rdist.earth",
+                         cov.args = list(Covariance = "Matern",
+                                         smoothness = 1))
+# where m=3 means quadratic form
+```
+
+```{r echo=F, eval=T}
+load("par_est.RData")
+```
+
+
+```{r}
+print(par_est)
+sigma.square = as.numeric(par_est$sigma.MLE)^2  # nugget variance (sigma^2)
+rho = as.numeric(par_est$rho.MLE)               # process variance (rho) 
+theta = as.numeric(par_est$theta.MLE)        # range parameter(theta) (miles)
+```
+
+### Model 2: Assume linear polynomial trend in P
+```{r echo=T, eval=F}
+par_est2 = spatialProcess(train_X,train_y,Z=train_Z,
+                         mKrig.args = list(m = 2),
+                         Distance = "rdist.earth",
+                         cov.args = list(Covariance = "Matern",
+                                         smoothness = 1))
+# where m=2 means linear form
+```
+
+```{r echo=F, eval=T}
+load("par_est2.RData")
+```
+
+```{r}
+print(par_est2)
+sigma.square = as.numeric(par_est$sigma.MLE)^2  # nugget variance (sigma^2)
+rho = as.numeric(par_est$rho.MLE)               # process variance (rho) 
+theta = as.numeric(par_est$theta.MLE)       # range parameter (theta) (miles)
+```
+
+## Model evaluation
+As for quadratic polynomial trend
+
+```{r echo=TRUE}
+par_est$d
+```
+The coefficient of Z is so small that it may be ignored.
+
+```{r echo=TRUE}
+par_est$eff.df
+```
+
+```{r echo=TRUE}
+par_est$lnProfileLike
+```
+
+```{r echo=TRUE}
+pre = predict(par_est, xnew = test_X, Z = test_Z)
+RMSE = mean((pre-test_y)^2)/median(test_y)
+RMSE
+```
+
+
+
+## Model evaluation
+As for linear polynomial trend
+
+```{r echo=TRUE}
+par_est2$d
+```
+The coefficient of Z is so small that it may be ignored.
+
+```{r echo=TRUE}
+par_est2$eff.df
+```
+
+```{r echo=TRUE}
+par_est2$lnProfileLike
+```
+
+```{r echo=TRUE}
+pre2 = predict(par_est2, xnew = test_X, Z = test_Z)
+RMSE2 = mean((pre2-test_y)^2)/median(test_y)
+RMSE2
+```
+
+## Model evaluation
+From above output, we can know that the log Profile likelihood for lambda of model 1 is larger than model 2, and this implies the good fitness of the former. Furthermore, the behavior of RMSE in model 1 is smaller than that in model 2. In view of goodness of fit and interpretability with relatively smaller RMSE, we choose model 1. In fact, the covariance model also can be selected, but the prediction effect of candidate models have no obvious difference, so the $Mat\acute{e}rn$ model with flexible parameters is used to fit the model of the whole data set.
+
+## Prediction by Matern model
+
+```{r echo=F, eval=T}
+load("par_est_whole.RData")
+```
+
+```{r, echo=TRUE, eval=F}
+## parameter estimation
+#(fields use great circle distances, approxiamte the earth by a ball)
+par_est_whole = spatialProcess(train_X,train_y,Z=train_Z,
+                               mKrig.args = list(m = 3),
+                               Distance = "rdist.earth",
+                               cov.args = list(Covariance = "Matern",smoothness = 1))
+# where m=3 means quadratic form
+print(par_est_whole)
+sigma.square = as.numeric(par_est_whole$sigma.MLE)^2     # nugget variance (sigma^2)  4.225
+rho = as.numeric(par_est_whole$rho.MLE)                  # process variance (rho)   60.12
+theta = as.numeric(par_est_whole$theta.MLE)              # range parameter (theta)  150.646(miles) 
+```
+
+
+## Construct the prediction region
+```{r echo=T, eval=F}
+## Create testing data by meshgrid  resolution of (60/50)бу x (25/50)бу of longitude and latitude
+lon_num = 50
+lat_num = 50
+lon_seq = seq(-125,-65,length.out=lon_num)
+lat_seq = seq(25,50,length.out=lat_num)
+
+## Restrict the grid to the USA mainland
+require(mapdata) 
+tmp <- map('worldHires', 'Usa', fill=TRUE, plot=FALSE) 
+require(maptools) 
+US.boundary <- map2SpatialPolygons(tmp, IDs = tmp$names, proj4string = CRS(as.character(NA))) 
+US.bbox.grid <- SpatialPoints(cbind(rep(lon_seq,length(lat_seq)), 
+                                    rep(lat_seq,each=length(lon_seq)))) 
+gridded(US.bbox.grid) <- TRUE
+US.grid <- US.bbox.grid[!is.na(over(US.bbox.grid, US.boundary)),] 
+Z = as.matrix(rep(mean(Z_new),length(US.grid@coords[,1])))
+pre_whole = predict(par_est_whole, xnew = US.grid@coords,Z = Z) # Z is not necessary
+```
+
+## Plot of krigged temperature
+
+```{r echo=F, eval=T}
+load("pre_whole.RData")
+load("US.grid.RData")
+```
+
+```{r }
+df=as.data.frame(US.grid)
+df$z <- pre_whole
+colnames(df)=c("lon","lat","temp")
+
+library(ggplot2)
+statesMap <- map_data("state")
+
+library(viridis)
+ggplot(df, aes(lon, lat,fill = temp)) + 
+  geom_raster(interpolate = F) + 
+  scale_fill_continuous(type="viridis",alpha=0.9) +
+  geom_polygon(data = statesMap, aes(x=long, y = lat, group = group), color = "black",fill="grey", alpha=0) +
+  labs(x = "lon",y = "lat", title = 'Krigged US temp (Fahrenheit) on Jan 1st, 2015') + 
+  theme(plot.title = element_text(hjust = 0.4))
+```
+
+## spatial pattern of the residuals after fitting
+```{r}
+library(plotly)
+testdata = cbind(X_new,Z_new,par_est_whole$residuals)
+colnames(testdata)=c("lon","lat", "elev", "temp")
+
+testdata$hover <- with(testdata, paste("<br>", "Lon:", lon,  
+                                       "<br>","Lat:", lat, 
+                                       "<br>","Elev:", elev,
+                                       "<br>", "ResTemp:", temp))
+bubble = plot_ly(testdata, x = ~lon, y = ~lat) %>%
+  add_markers(
+    text = ~hover, showlegend=FALSE,
+    marker=list(color = ~temp, 
+                size = ~2*abs(temp), opacity = 0.5, 
+                type = 'scatter', mode = 'markers', showscale=FALSE),
+    hoverinfo = "text") %>%
+  layout(title = 'Residual from two order polynomial trend with Matern class covariance',
+         xaxis = list(showgrid = FALSE),
+         yaxis = list(showgrid = FALSE))
+```
+
+```{r }
+bubble
+```
+
+```{r echo=T}
+range(par_est_whole$residuals)
+```
+
+The range of the fitted residuals is $(-13.14837,18.24184)$, and the bubble diagram reflects the overall fitted effect of the spatial model with the quadratic polynomial trend and $Mat\acute{e}rn$ covariance, except that a few coordinates have a large deviation in the predicted value which could be a result of high elevation. 
+
